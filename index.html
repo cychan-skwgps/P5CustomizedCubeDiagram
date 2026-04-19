@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>正方體 11 種展開圖模擬器</title>
+    <title>正方體展開圖製作器 - 和諧色彩版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -33,6 +33,16 @@
             .right-view { width: 35% !important; height: 100% !important; border-left: 1px solid #e5e7eb; }
         }
 
+        .grid-background {
+            background-image: 
+                linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+        }
+        @media (min-width: 640px) {
+            .grid-background { background-size: 65px 65px; }
+        }
+
         .cube-face {
             width: 50px;
             height: 50px;
@@ -44,7 +54,8 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background-color 0.2s;
+            transition: background-color 0.2s, transform 0.3s ease;
+            background-color: #fff;
         }
 
         @media (min-width: 640px) {
@@ -70,27 +81,51 @@
         .net-container {
             display: grid;
             grid-template-columns: repeat(6, 50px);
-            grid-template-rows: repeat(5, 50px);
+            grid-template-rows: repeat(6, 50px);
             gap: 0;
-            padding: 20px;
+            padding: 40px;
+            position: relative;
+            transition: all 0.3s ease;
         }
         
         @media (min-width: 640px) {
             .net-container {
                 grid-template-columns: repeat(6, 65px);
-                grid-template-rows: repeat(5, 65px);
+                grid-template-rows: repeat(6, 65px);
             }
         }
 
         .active-face {
             outline: 4px solid #3b82f6;
             box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
-            z-index: 10;
+            z-index: 20;
+        }
+
+        .rotate-indicator {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #3b82f6;
+            color: white;
+            border-radius: 999px;
+            padding: 2px 8px;
+            font-size: 10px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            pointer-events: auto;
+            white-space: nowrap;
         }
 
         .hide-active .active-face {
             outline: none !important;
             box-shadow: none !important;
+        }
+        .hide-active .rotate-indicator {
+            display: none !important;
         }
 
         #screenshot-modal {
@@ -102,12 +137,6 @@
             align-items: center;
             justify-content: center;
             padding: 20px;
-        }
-
-        #screenshot-modal img {
-            max-width: 100%;
-            max-height: 70vh;
-            border: 1px solid #ddd;
         }
 
         .color-input-wrapper {
@@ -133,6 +162,32 @@
             border-radius: 4px;
             border: 1px solid #ccc;
         }
+
+        .zoom-controls {
+            position: absolute;
+            bottom: 1rem;
+            right: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            z-index: 10;
+        }
+        .zoom-btn {
+            background: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #374151;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
     </style>
 </head>
 <body class="flex flex-col">
@@ -148,15 +203,13 @@
 
     <main class="no-print overflow-hidden">
         
-        <!-- 左側控制面板 -->
         <aside class="shrink-0 bg-white border-b border-gray-200 shadow-sm z-10 overflow-y-auto max-h-[40vh] md:max-h-full">
             <div class="p-4 flex flex-col gap-5">
                 
-                <!-- 1. 佈局選擇 -->
                 <section>
                     <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">展開圖型式</label>
                     <select id="layoutSelect" class="w-full p-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50 focus:ring-2 focus:ring-indigo-500 outline-none">
-                        <optgroup label="1-4-1 型 (最常見)">
+                        <optgroup label="1-4-1 型">
                             <option value="141_1">1-4-1 (正中)</option>
                             <option value="141_2">1-4-1 (偏移 1)</option>
                             <option value="141_3">1-4-1 (偏移 2)</option>
@@ -176,44 +229,47 @@
                     </select>
                 </section>
 
-                <!-- 2. 全域顏色設定 -->
                 <section>
-                    <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">全域顏色設定</label>
+                    <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">自訂顏色</label>
                     <div class="space-y-2">
                         <div class="color-input-wrapper">
                             <input type="color" id="faceColor" value="#ffffff">
-                            <span class="text-xs text-gray-600 font-medium">預設/全體底色</span>
+                            <span class="text-xs text-gray-600 font-medium">預設底色</span>
                         </div>
                         <div class="color-input-wrapper">
                             <input type="color" id="textColor" value="#000000">
-                            <span class="text-xs text-gray-600 font-medium">文字/符號顏色</span>
+                            <span class="text-xs text-gray-600 font-medium">文字顏色</span>
                         </div>
                     </div>
                 </section>
 
-                <!-- 3. 顏色快捷 (支持逐格或全體) -->
                 <section>
-                    <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">底色快捷 (選取格子可單獨換色)</label>
+                    <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">底色快捷 (和諧粉彩色系)</label>
                     <div class="grid grid-cols-5 gap-2 p-2 border rounded-lg bg-gray-50" id="colorPalette"></div>
                 </section>
 
-                <!-- 4. 操作與方向 -->
                 <section>
-                    <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">選中格操作</label>
-                    <button id="rotateBtn" class="w-full bg-indigo-50 text-indigo-700 font-bold py-2.5 rounded-lg text-sm border border-indigo-200 hover:bg-indigo-100 transition flex items-center justify-center gap-2 mb-2">
-                        旋轉 90° ↻
-                    </button>
-                    <button onclick="clearActiveFace()" class="w-full bg-white text-gray-500 py-1.5 rounded text-[11px] border border-gray-200 hover:bg-gray-50 transition">
-                        清除目前選取
-                    </button>
+                    <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">快速操作</label>
+                    <div class="flex flex-col gap-2">
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="rotateActive()" class="bg-indigo-50 text-indigo-700 font-bold py-2 rounded-lg text-xs border border-indigo-200 hover:bg-indigo-100 transition">
+                                選中格旋轉 ↻
+                            </button>
+                            <button onclick="rotateEntireNet()" class="bg-amber-50 text-amber-700 font-bold py-2 rounded-lg text-xs border border-amber-200 hover:bg-amber-100 transition">
+                                全體旋轉 90° ⟳
+                            </button>
+                        </div>
+                        <button onclick="clearActiveFace()" class="bg-white text-gray-500 py-2 rounded-lg text-xs border border-gray-200 hover:bg-gray-50 transition">
+                            取消選取
+                        </button>
+                    </div>
                 </section>
 
-                <!-- 5. 符號選擇 -->
                 <section>
                     <div class="flex justify-between items-end mb-2">
-                        <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest">快速更換符號</label>
+                        <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest">符號選擇</label>
                         <button onclick="clearAllSymbols()" class="text-[10px] font-bold text-red-500 hover:text-red-700 underline">
-                            空白展開圖
+                            全部清空
                         </button>
                     </div>
                     <div class="grid grid-cols-6 gap-1.5 p-2 border rounded-lg bg-gray-50" id="symbolPicker"></div>
@@ -221,35 +277,35 @@
             </div>
         </aside>
 
-        <!-- 中間：2D 編輯區 -->
         <section id="netViewArea" class="center-view flex-1 bg-gray-100 flex flex-col items-center justify-center p-4 relative overflow-auto" onclick="deselectFace(event)">
             <div class="absolute top-4 left-4 flex items-center gap-2 z-10">
                 <span class="bg-gray-800 text-white text-[10px] px-2 py-1 rounded font-bold uppercase tracking-tighter">2D Editor</span>
                 <button onclick="copy2DImage()" class="bg-white text-gray-800 text-xs px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50 transition flex items-center gap-2 shadow-sm font-bold">
-                    <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                     產生展開圖圖片
                 </button>
             </div>
-            <div id="captureTarget" class="bg-white p-6 rounded-xl shadow-xl">
+            
+            <div id="captureTarget" class="bg-white p-10 rounded-xl shadow-xl relative grid-background">
                 <div id="netDisplay" class="net-container"></div>
             </div>
         </section>
 
-        <!-- 右側：3D 預覽 -->
         <section class="right-view h-[40vh] md:h-full bg-white border-t lg:border-t-0 flex flex-col relative shadow-inner">
             <div class="absolute top-4 left-4 flex items-center gap-2 z-10">
                 <span class="bg-gray-800 text-white text-[10px] px-2 py-1 rounded font-bold uppercase tracking-tighter">3D Preview</span>
                 <button onclick="copy3DImage()" class="bg-white text-gray-800 text-xs px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50 transition flex items-center gap-2 shadow-sm font-bold">
-                    <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                     產生 3D 圖片
                 </button>
             </div>
-            <div id="threejs-container" class="flex-1"></div>
+            <div id="threejs-container" class="flex-1 cursor-move"></div>
+            <div class="zoom-controls">
+                <button class="zoom-btn" onclick="adjustZoom(-1)">+</button>
+                <button class="zoom-btn" onclick="adjustZoom(1)">−</button>
+            </div>
         </section>
 
     </main>
 
-    <!-- 圖片預覽彈窗 -->
     <div id="screenshot-modal" onclick="this.style.display='none'">
         <div class="bg-white p-6 rounded-2xl max-w-[95vw] flex flex-col items-center gap-4 shadow-2xl" onclick="event.stopPropagation()">
             <div class="w-full flex justify-between items-center border-b pb-3">
@@ -260,28 +316,37 @@
                 <img id="preview-img" src="" alt="Screenshot" class="block mx-auto">
             </div>
             <div class="text-center p-3 bg-indigo-50 rounded-xl w-full">
-                <p class="text-xs text-indigo-800 font-bold mb-1 leading-relaxed">電腦：右鍵點擊「複製圖片」<br>手機：長按圖片即可儲存</p>
+                <p class="text-xs text-indigo-800 font-bold">電腦：右鍵複製 | 手機：長按儲存</p>
             </div>
             <button onclick="document.getElementById('screenshot-modal').style.display='none'" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl text-sm font-bold shadow-lg transition">關閉</button>
         </div>
     </div>
 
     <script>
-        const symbols = ['A', 'B', 'C', 'D', 'E', 'F', '1', '2', '★', '♥', '♣', '♦', '▲', '●', '☀', '☁', '✈', '⚓', '0', '3', '4', '5', '6', '7', '8'];
+        const symbols = ['A', 'B', 'C', 'D', 'E', 'F', '1', '2', '3', '4', '5', '6', '★', '♥', '♣', '♦', '▲', '●', '☀', '☁', '✈', '⚓', '0', '7', '8'];
         
+        // 更新：和諧粉彩色系 (紅、橙、黃、綠、藍、紫、黑、白、灰、粉紅)
         const presetColors = [
-            '#FFFFFF', '#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1',
-            '#96CEB4', '#FFEEAD', '#D4A5A5', '#9B59B6', '#34495E'
+            '#FFADAD', // 粉紅/紅 (和諧調)
+            '#FFD6A5', // 橙
+            '#FDFFB6', // 黃
+            '#CAFFBF', // 綠
+            '#9BF6FF', // 藍
+            '#BDB2FF', // 紫
+            '#4A4E69', // 深灰/黑 (和諧黑)
+            '#FFFFFF', // 白
+            '#D1D5DB', // 灰
+            '#FFC6FF'  // 粉紅
         ];
 
-        // 追蹤每個面的個別屬性
         let faces = Array.from({ length: 6 }, (_, i) => ({
-            char: String.fromCharCode(65 + i), // A, B, C...
+            char: String.fromCharCode(65 + i),
             rotate: 0,
-            bgColor: '#ffffff' // 獨立背景色
+            bgColor: '#ffffff'
         }));
 
-        let activeFaceIndex = 0;
+        let activeFaceIndex = -1;
+        let currentLayoutData = [];
 
         const layouts = {
             '141_1': [{x: 1, y: 1, f: 2}, {x: 0, y: 2, f: 4}, {x: 1, y: 2, f: 0}, {x: 2, y: 2, f: 5}, {x: 3, y: 2, f: 1}, {x: 1, y: 3, f: 3}],
@@ -301,7 +366,6 @@
         const colorPalette = document.getElementById('colorPalette');
         const netDisplay = document.getElementById('netDisplay');
         const layoutSelect = document.getElementById('layoutSelect');
-        const rotateBtn = document.getElementById('rotateBtn');
         const faceColorInput = document.getElementById('faceColor');
         const textColorInput = document.getElementById('textColor');
         const screenshotModal = document.getElementById('screenshot-modal');
@@ -310,6 +374,7 @@
         let scene, camera, renderer, cube;
         let isDragging = false;
         let previousMousePosition = { x: 0, y: 0 };
+        let cameraDistance = 5;
 
         function deselectFace(e) {
             if (e.target.id === 'netViewArea' || e.target.id === 'captureTarget') {
@@ -323,6 +388,26 @@
             renderNet();
         }
 
+        function rotateActive() {
+            if (activeFaceIndex === -1) return;
+            faces[activeFaceIndex].rotate = (faces[activeFaceIndex].rotate + 90) % 360;
+            updateAll();
+        }
+
+        function rotateEntireNet() {
+            const oldLayout = [...currentLayoutData];
+            let maxX = 0, maxY = 0;
+            oldLayout.forEach(p => { maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); });
+
+            const newLayout = oldLayout.map(p => ({ ...p, x: (maxY - p.y), y: p.x }));
+            let nMinX = 10, nMinY = 10;
+            newLayout.forEach(p => { nMinX = Math.min(nMinX, p.x); nMinY = Math.min(nMinY, p.y); });
+            
+            currentLayoutData = newLayout.map(p => ({ ...p, x: p.x - nMinX, y: p.y - nMinY }));
+            faces.forEach(f => f.rotate = (f.rotate + 90) % 360);
+            updateAll();
+        }
+
         function clearAllSymbols() {
             faces.forEach(f => f.char = '');
             updateAll();
@@ -334,11 +419,7 @@
                 const div = document.createElement('div');
                 div.className = 'aspect-square flex items-center justify-center border border-gray-200 rounded-md bg-white text-sm cursor-pointer hover:bg-indigo-50 hover:border-indigo-300 transition';
                 div.innerText = s;
-                div.onclick = () => {
-                    if (activeFaceIndex === -1) return;
-                    faces[activeFaceIndex].char = s;
-                    updateAll();
-                };
+                div.onclick = () => { if (activeFaceIndex !== -1) { faces[activeFaceIndex].char = s; updateAll(); }};
                 symbolPicker.appendChild(div);
             });
 
@@ -348,14 +429,8 @@
                 div.className = 'aspect-square rounded-md border border-gray-300 cursor-pointer hover:scale-110 transition shadow-sm';
                 div.style.backgroundColor = color;
                 div.onclick = () => {
-                    if (activeFaceIndex !== -1) {
-                        // 僅更改選中格
-                        faces[activeFaceIndex].bgColor = color;
-                    } else {
-                        // 更改全體格
-                        faces.forEach(f => f.bgColor = color);
-                        faceColorInput.value = color;
-                    }
+                    if (activeFaceIndex !== -1) { faces[activeFaceIndex].bgColor = color; } 
+                    else { faces.forEach(f => f.bgColor = color); faceColorInput.value = color; }
                     updateAll();
                 };
                 colorPalette.appendChild(div);
@@ -363,30 +438,32 @@
         }
 
         function renderNet() {
-            const config = layouts[layoutSelect.value];
             const currentTextColor = textColorInput.value;
-            
             netDisplay.innerHTML = '';
-            config.forEach(pos => {
+            currentLayoutData.forEach(pos => {
                 const faceData = faces[pos.f];
                 const faceEl = document.createElement('div');
                 faceEl.className = `cube-face ${activeFaceIndex === pos.f ? 'active-face' : ''}`;
                 faceEl.style.gridColumnStart = pos.x + 1;
                 faceEl.style.gridRowStart = pos.y + 1;
                 faceEl.style.backgroundColor = faceData.bgColor;
-                
+
+                if (activeFaceIndex === pos.f) {
+                    const rotBtn = document.createElement('button');
+                    rotBtn.className = 'rotate-indicator';
+                    rotBtn.innerHTML = '↻ 旋轉';
+                    rotBtn.onclick = (e) => { e.stopPropagation(); rotateActive(); };
+                    faceEl.appendChild(rotBtn);
+                }
+
                 const charEl = document.createElement('div');
                 charEl.className = 'face-char';
                 charEl.innerText = faceData.char;
                 charEl.style.color = currentTextColor;
                 charEl.style.transform = `rotate(${faceData.rotate}deg)`;
-                
                 faceEl.appendChild(charEl);
-                faceEl.onclick = (e) => { 
-                    e.stopPropagation();
-                    activeFaceIndex = pos.f; 
-                    renderNet(); 
-                };
+                
+                faceEl.onclick = (e) => { e.stopPropagation(); activeFaceIndex = pos.f; renderNet(); };
                 netDisplay.appendChild(faceEl);
             });
         }
@@ -395,9 +472,7 @@
             const target = document.getElementById('captureTarget');
             target.classList.add('hide-active');
             try {
-                const canvas = await html2canvas(target, { 
-                    backgroundColor: '#ffffff', scale: 3, useCORS: true, logging: false
-                });
+                const canvas = await html2canvas(target, { backgroundColor: '#ffffff', scale: 3, useCORS: true });
                 previewImg.src = canvas.toDataURL("image/png");
                 screenshotModal.style.display = 'flex';
             } catch (err) { console.error(err); }
@@ -405,57 +480,47 @@
         }
 
         function copy3DImage() {
-            if (!renderer || !scene || !camera) return;
+            if (!renderer) return;
             renderer.render(scene, camera);
             previewImg.src = renderer.domElement.toDataURL("image/png");
             screenshotModal.style.display = 'flex';
         }
 
+        function adjustZoom(delta) {
+            cameraDistance += delta * 0.5;
+            cameraDistance = Math.max(2.5, Math.min(cameraDistance, 10));
+            updateCameraPosition();
+        }
+
+        function updateCameraPosition() {
+            if (!camera) return;
+            const vector = camera.position.clone().normalize().multiplyScalar(cameraDistance);
+            camera.position.copy(vector);
+            camera.lookAt(0, 0, 0);
+        }
+
         function init3D() {
             const container = document.getElementById('threejs-container');
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0xf9fafb);
+            scene.background = new THREE.Color(0xffffff);
             camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
-            camera.position.set(3, 3, 5);
-            camera.lookAt(0, 0, 0);
+            camera.position.set(3, 3, 3);
+            updateCameraPosition();
             renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
             renderer.setSize(container.clientWidth, container.clientHeight);
             container.appendChild(renderer.domElement);
-            scene.add(new THREE.AmbientLight(0xffffff, 0.9));
-            const dl = new THREE.DirectionalLight(0xffffff, 0.3);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            const dl = new THREE.DirectionalLight(0xffffff, 0.4);
             dl.position.set(10, 10, 10);
             scene.add(dl);
-
-            const handleMove = (x, y) => {
-                if (isDragging && cube) {
-                    cube.rotation.y += (x - previousMousePosition.x) * 0.01;
-                    cube.rotation.x += (y - previousMousePosition.y) * 0.01;
-                }
-                previousMousePosition = { x, y };
-            };
 
             container.addEventListener('mousedown', () => isDragging = true);
             window.addEventListener('mouseup', () => isDragging = false);
             container.addEventListener('mousemove', e => {
-                const rect = container.getBoundingClientRect();
-                handleMove(e.clientX - rect.left, e.clientY - rect.top);
-            });
-            container.addEventListener('touchstart', e => { 
-                isDragging = true; 
-                const rect = container.getBoundingClientRect();
-                previousMousePosition = { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
-            });
-            container.addEventListener('touchend', () => isDragging = false);
-            container.addEventListener('touchmove', e => {
-                if (!isDragging) return;
-                const rect = container.getBoundingClientRect();
-                handleMove(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
-            });
-
-            window.addEventListener('resize', () => {
-                camera.aspect = container.clientWidth / container.clientHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(container.clientWidth, container.clientHeight);
+                if (isDragging && cube) {
+                    cube.rotation.y += e.movementX * 0.01;
+                    cube.rotation.x += e.movementY * 0.01;
+                }
             });
         }
 
@@ -473,14 +538,13 @@
                 ctx.fillRect(0, 0, 512, 512);
                 ctx.strokeStyle = '#333333'; ctx.lineWidth = 15; ctx.strokeRect(0, 0, 512, 512);
                 ctx.fillStyle = currentTextColor; 
-                ctx.font = 'bold 320px "Noto Sans TC", sans-serif';
+                ctx.font = 'bold 320px sans-serif';
                 ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 ctx.save(); ctx.translate(256, 256);
                 ctx.rotate(faces[idx].rotate * Math.PI / 180);
                 ctx.fillText(faces[idx].char, 0, 0); 
                 ctx.restore();
-                const texture = new THREE.CanvasTexture(canvas);
-                return new THREE.MeshLambertMaterial({ map: texture });
+                return new THREE.MeshLambertMaterial({ map: new THREE.CanvasTexture(canvas) });
             });
             cube = new THREE.Mesh(geometry, materials);
             scene.add(cube);
@@ -488,30 +552,18 @@
 
         function animate() {
             requestAnimationFrame(animate);
-            if (renderer && scene && camera) renderer.render(scene, camera);
+            if (renderer) renderer.render(scene, camera);
         }
 
         function updateAll() { renderNet(); createCube(); }
 
-        rotateBtn.onclick = () => { 
-            if (activeFaceIndex === -1) return;
-            faces[activeFaceIndex].rotate = (faces[activeFaceIndex].rotate + 90) % 360; 
-            updateAll(); 
-        };
-        
-        layoutSelect.onchange = updateAll;
-        faceColorInput.oninput = () => {
-            const val = faceColorInput.value;
-            faces.forEach(f => f.bgColor = val);
-            updateAll();
-        };
+        layoutSelect.onchange = () => { currentLayoutData = [...layouts[layoutSelect.value]]; updateAll(); };
+        faceColorInput.oninput = () => { faces.forEach(f => f.bgColor = faceColorInput.value); updateAll(); };
         textColorInput.oninput = updateAll;
 
         window.onload = () => { 
-            initPickers(); 
-            init3D(); 
-            updateAll(); 
-            animate(); 
+            currentLayoutData = [...layouts[layoutSelect.value]];
+            initPickers(); init3D(); updateAll(); animate(); 
         };
     </script>
 </body>
