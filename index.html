@@ -76,8 +76,9 @@
                 </section>
 
                 <section>
-                    <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">底色快捷 (和諧粉彩)</label>
-                    <div class="grid grid-cols-5 gap-2 p-2 border rounded-lg bg-gray-50" id="colorPalette"></div>
+                    <label class="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">底色快捷 (和諧粉彩 & 自訂)</label>
+                    <!-- 修改為 grid-cols-6 容納自定義顏色按鈕 -->
+                    <div class="grid grid-cols-6 gap-2 p-2 border rounded-lg bg-gray-50" id="colorPalette"></div>
                 </section>
 
                 <section>
@@ -191,7 +192,6 @@
         }));
 
         // 嚴格計算後的拓撲矩陣 (保證 3D 模型完全正確對應)
-        // r = 展開到 2D 平面時所需要的旋轉補正 (0, 90, 180, 270)
         const layouts = {
             '141_1': [{x:1, y:0, f:2, r:0}, {x:0, y:1, f:4, r:0}, {x:1, y:1, f:0, r:0}, {x:2, y:1, f:5, r:0}, {x:3, y:1, f:1, r:0}, {x:1, y:2, f:3, r:0}],
             '141_2': [{x:2, y:0, f:2, r:270}, {x:0, y:1, f:4, r:0}, {x:1, y:1, f:0, r:0}, {x:2, y:1, f:5, r:0}, {x:3, y:1, f:1, r:0}, {x:1, y:2, f:3, r:0}],
@@ -224,6 +224,8 @@
 
         function init() {
             const colorPalette = document.getElementById('colorPalette');
+            
+            // 1. 預設顏色
             presetColors.forEach(c => {
                 const d = document.createElement('div');
                 d.className = 'aspect-square rounded border cursor-pointer hover:scale-105 transition';
@@ -236,6 +238,32 @@
                 colorPalette.appendChild(d);
             });
 
+            // 2. 加入自定義顏色選擇器 (彩虹按鈕)
+            const customColorWrapper = document.createElement('div');
+            customColorWrapper.className = 'aspect-square rounded border cursor-pointer hover:scale-105 transition relative overflow-hidden flex items-center justify-center';
+            customColorWrapper.style.background = 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)';
+            customColorWrapper.title = '自定義顏色';
+
+            const innerCircle = document.createElement('div');
+            innerCircle.className = 'bg-white rounded-full pointer-events-none shadow-sm';
+            innerCircle.style.width = '40%';
+            innerCircle.style.height = '40%';
+            customColorWrapper.appendChild(innerCircle);
+
+            const colorInput = document.createElement('input');
+            colorInput.type = 'color';
+            colorInput.value = '#ff0000';
+            colorInput.className = 'absolute inset-0 w-full h-full opacity-0 cursor-pointer';
+            colorInput.addEventListener('input', (e) => {
+                const c = e.target.value;
+                if(activeFaceIdx !== -1) faceData[activeFaceIdx].bgColor = c;
+                else faceData.forEach(f => f.bgColor = c);
+                renderNet();
+            });
+            customColorWrapper.appendChild(colorInput);
+            colorPalette.appendChild(customColorWrapper);
+
+            // 符號選擇初始化
             const symbolPicker = document.getElementById('symbolPicker');
             symbols.forEach(s => {
                 const d = document.createElement('div');
@@ -301,7 +329,6 @@
                 const char = document.createElement('div');
                 char.className = 'face-char';
                 char.innerText = data.char;
-                // 2D 畫面上我們只顯示使用者所設定的方向
                 char.style.transform = `rotate(${data.userRotate}deg)`;
                 char.style.color = '#000000';
                 el.appendChild(char);
